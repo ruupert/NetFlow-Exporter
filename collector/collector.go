@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hatamiarash7/netflow-exporter/config"
+	"github.com/hatamiarash7/netflow-exporter/mmdb"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -37,10 +38,12 @@ type sample struct {
 
 // Collector is the main collector type
 type Collector struct {
-	Config  config.Config
-	Channel chan *sample
-	Samples map[string]*sample
-	Mutex   *sync.Mutex
+	Config     config.Config
+	MmdbCities *[]mmdb.Mmdb
+	MmdbAsns   *[]mmdb.Mmdb
+	Channel    chan *sample
+	Samples    map[string]*sample
+	Mutex      *sync.Mutex
 }
 
 type timeConstMetric struct {
@@ -50,11 +53,31 @@ type timeConstMetric struct {
 
 // NewCollector will define new NetFlow collector instance
 func NewCollector(cfg config.Config) *Collector {
+	var m []mmdb.Mmdb
+	fmt.Println(cfg.GeoipCities)
+	for _, v := range cfg.GeoipCities {
+		fmt.Println(v)
+		tmp := &mmdb.Mmdb{}
+		tmp.NewMmdb(v, cfg.GeoipResolveSrc, cfg.GeoipResolveDst)
+		m = append(m, *tmp)
+	}
+
+	var asns []mmdb.Mmdb
+	fmt.Println(cfg.GeoipCities)
+	for _, v := range cfg.GeoipAsns {
+		fmt.Println(v)
+		tmp := &mmdb.Mmdb{}
+		tmp.NewMmdb(v, cfg.GeoipResolveSrc, cfg.GeoipResolveDst)
+		asns = append(m, *tmp)
+	}
+
 	c := &Collector{
-		Config:  cfg,
-		Channel: make(chan *sample, 0),
-		Samples: map[string]*sample{},
-		Mutex:   &sync.Mutex{},
+		Config:     cfg,
+		MmdbCities: &m,
+		MmdbAsns:   &asns,
+		Channel:    make(chan *sample, 0),
+		Samples:    map[string]*sample{},
+		Mutex:      &sync.Mutex{},
 	}
 	go c.process()
 
@@ -93,6 +116,68 @@ func (c *Collector) Reader(udpSock *net.UDPConn) {
 			for _, record := range p.Records {
 				labels := prometheus.Labels{}
 				counts := make(map[string]float64)
+
+				if c.Config.GeoipResolveSrc {
+					lon := 0.0
+					lat := 0.0
+					cnt := ""
+					cty := ""
+					for _, v := range *c.MmdbCities {
+						res := v.Mmdb(record.SrcAddr.String())
+						if lon == 0.0 || lat == 0.0 {
+							lon = res.Location.Longitude
+							lat = res.Location.Latitude
+							cnt = res.Country.IsoCode
+							cty = res.City.Names.En
+						}
+					}
+					if lon != 0.0 || lat != 0.0 {
+						labels["sourceIPv4Longitude"] = fmt.Sprintf("%f", lon)
+						labels["sourceIPv4Latitude"] = fmt.Sprintf("%f", lat)
+						labels["sourceIpv4Country"] = cnt
+						labels["sourceIpv4City"] = cty
+					}
+					if c.MmdbAsns != nil {
+						for _, v := range *c.MmdbAsns {
+							res := v.Asn(record.SrcAddr.String())
+							if res.AutonomousSystemNumber > 0 {
+								labels["sourceAsnOrganization"] = res.AutonomousSystemOrganization
+								labels["sourceAsnNumber"] = fmt.Sprintf("AS%d", res.AutonomousSystemNumber)
+							}
+						}
+					}
+				}
+
+				if c.Config.GeoipResolveDst {
+					lon := 0.0
+					lat := 0.0
+					cnt := ""
+					cty := ""
+					for _, v := range *c.MmdbCities {
+						res := v.Mmdb(record.DstAddr.String())
+						if lon == 0.0 || lat == 0.0 {
+							lon = res.Location.Longitude
+							lat = res.Location.Latitude
+							cnt = res.Country.IsoCode
+							cty = res.City.Names.En
+						}
+					}
+					if lon != 0.0 || lat != 0.0 {
+						labels["destinationIPv4Longitude"] = fmt.Sprintf("%f", lon)
+						labels["destinationIPv4Latitude"] = fmt.Sprintf("%f", lat)
+						labels["destinationIpv4Country"] = cnt
+						labels["destinationIpv4City"] = cty
+					}
+					if c.MmdbAsns != nil {
+						for _, v := range *c.MmdbAsns {
+							res := v.Asn(record.DstAddr.String())
+							if res.AutonomousSystemNumber > 0 {
+								labels["destinaetionAsnOrganization"] = res.AutonomousSystemOrganization
+								labels["destinationAsnNumber"] = fmt.Sprintf("AS%d", res.AutonomousSystemNumber)
+							}
+						}
+					}
+				}
 
 				labels["sourceIPv4Address"] = record.SrcAddr.String()
 				labels["destinationIPv4Address"] = record.DstAddr.String()

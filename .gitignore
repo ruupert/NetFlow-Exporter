@@ -5,6 +5,9 @@
 *.so
 *.dylib
 
+# mmdb files
+*.mmdb
+
 # Binary folder
 /bin
 /dist

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -47,11 +48,16 @@ func configureLog() {
 
 func init() {
 	filler := flagsfiller.New()
+
 	err := filler.Fill(flag.CommandLine, &cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
+	flag.Var(&cfg.GeoipCities, "geoip-city", "repeatable, -geoip-city fname1 -geoip-city fname2")
+	flag.Var(&cfg.GeoipAsns, "geoip-asn", "repeatable, -geoip-asn fname1 -geoip-asn fname2")
+
 	flag.Parse()
+	fmt.Println(cfg)
 
 	configureLog()
 
@@ -79,6 +85,7 @@ func main() {
 	if len(cfg.Exclude) > 0 {
 		log.Infof("Exclude: %s", cfg.Exclude)
 	}
+	fmt.Println(cfg)
 
 	go c.Reader(udpSocket)
 
