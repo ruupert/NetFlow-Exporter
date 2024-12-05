@@ -54,18 +54,14 @@ type timeConstMetric struct {
 // NewCollector will define new NetFlow collector instance
 func NewCollector(cfg config.Config) *Collector {
 	var m []mmdb.Mmdb
-	fmt.Println(cfg.GeoipCities)
 	for _, v := range cfg.GeoipCities {
-		fmt.Println(v)
 		tmp := &mmdb.Mmdb{}
 		tmp.NewMmdb(v, cfg.GeoipResolveSrc, cfg.GeoipResolveDst)
 		m = append(m, *tmp)
 	}
 
 	var asns []mmdb.Mmdb
-	fmt.Println(cfg.GeoipCities)
 	for _, v := range cfg.GeoipAsns {
-		fmt.Println(v)
 		tmp := &mmdb.Mmdb{}
 		tmp.NewMmdb(v, cfg.GeoipResolveSrc, cfg.GeoipResolveDst)
 		asns = append(m, *tmp)
