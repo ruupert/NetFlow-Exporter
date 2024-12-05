@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/hatamiarash7/netflow-exporter/collector"
 	"github.com/hatamiarash7/netflow-exporter/config"
@@ -90,17 +91,23 @@ func main() {
 	go c.Reader(udpSocket)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`<html>
+		_, err := w.Write([]byte(`<html>
         <head><title>NetFlow Exporter</title></head>
         <body>
         <h1>NetFlow Exporter</h1>
         <p><a href='` + cfg.MetricPath + `'>Metrics</a></p>
         </body>
         </html>`))
+		log.Error(err)
 	})
 
 	log.Infof("Listening NetFlow on %s", cfg.ListenAddress)
 	log.Infof("Listening metrics on %s", cfg.MetricAddress)
 
-	log.Fatal(http.ListenAndServe(cfg.MetricAddress, nil))
+	server := &http.Server{
+		Addr:              cfg.MetricAddress,
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+
+	log.Fatal(server.ListenAndServe())
 }
